@@ -1,0 +1,544 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import sympy as sp
+from scipy.integrate import odeint
+from scipy.optimize import fsolve
+import warnings
+warnings.filterwarnings('ignore')
+
+class TaylorPolynomialSolver:
+    """
+    A class for computing Taylor polynomial expansions and solving differential equations
+    """
+    
+    def __init__(self):
+        """Initialize symbolic variables for computation"""
+        self.x1, self.x2, self.x3, self.x4 = sp.symbols('x1 x2 x3 x4')
+        self.variables = [self.x1, self.x2, self.x3, self.x4]
+        
+    def compute_taylor_expansion(self, func, variables, point, order=3):
+        """
+        Compute Taylor expansion of a multi-variable function
+        
+        Args:
+            func: Symbolic function
+            variables: List of symbolic variables
+            point: Point around which to expand
+            order: Order of Taylor expansion
+            
+        Returns:
+            taylor_poly: Taylor polynomial expansion
+        """
+        # Start with the function value at the point
+        taylor_poly = func.subs([(var, pt) for var, pt in zip(variables, point)])
+        
+        # Add higher order terms
+        for n in range(1, order + 1):
+            for term_order in self._generate_multi_indices(len(variables), n):
+                # Calculate the derivative
+                deriv = func
+                for var_idx, power in enumerate(term_order):
+                    for _ in range(power):
+                        deriv = sp.diff(deriv, variables[var_idx])
+                
+                # Evaluate derivative at point
+                deriv_val = deriv.subs([(var, pt) for var, pt in zip(variables, point)])
+                
+                # Build the term
+                term = deriv_val
+                factorial_divisor = 1
+                for var_idx, power in enumerate(term_order):
+                    if power > 0:
+                        term *= (variables[var_idx] - point[var_idx])**power
+                        factorial_divisor *= sp.factorial(power)
+                
+                taylor_poly += term / factorial_divisor
+                
+        return sp.simplify(taylor_poly)
+    
+    def _generate_multi_indices(self, num_vars, total_order):
+        """Generate all multi-indices for a given total order"""
+        if num_vars == 1:
+            return [[total_order]]
+        
+        indices = []
+        for i in range(total_order + 1):
+            for sub_indices in self._generate_multi_indices(num_vars - 1, total_order - i):
+                indices.append([i] + sub_indices)
+        
+        return [idx for idx in indices if sum(idx) == total_order]
+
+# Part 1: Taylor Expansion of Multi-variable Function
+print("=" * 70)
+print("PART 1: TAYLOR EXPANSION OF MULTI-VARIABLE FUNCTION")
+print("=" * 70)
+
+def part1_taylor_expansion():
+    """
+    Construct Taylor expansion for f(x1, x2) = exp(x1) * sin(x2) + x1^2 * x2
+    """
+    # Define symbolic variables
+    x1, x2 = sp.symbols('x1 x2')
+    
+    # Define the function
+    f = sp.exp(x1) * sp.sin(x2) + x1**2 * x2
+    
+    print("\nFunction: f(x1, x2) = exp(x1) * sin(x2) + x1^2 * x2")
+    
+    # Expansion point
+    a = [0, np.pi/4]
+    print(f"\nExpansion point a = ({a[0]}, π/4)")
+    
+    # Calculate partial derivatives manually
+    print("\n--- Manual Taylor Expansion Calculation ---")
+    print("\nFirst, calculate f(a):")
+    f_a = f.subs([(x1, a[0]), (x2, a[1])])
+    print(f"f(0, π/4) = exp(0) * sin(π/4) + 0^2 * π/4 = √2/2 ≈ {float(f_a):.4f}")
+    
+    print("\nFirst-order partial derivatives:")
+    df_dx1 = sp.diff(f, x1)
+    df_dx2 = sp.diff(f, x2)
+    print(f"∂f/∂x1 = {df_dx1}")
+    print(f"∂f/∂x2 = {df_dx2}")
+    
+    print("\nEvaluate at point a:")
+    df_dx1_a = df_dx1.subs([(x1, a[0]), (x2, a[1])])
+    df_dx2_a = df_dx2.subs([(x1, a[0]), (x2, a[1])])
+    print(f"∂f/∂x1|a = {float(df_dx1_a):.4f}")
+    print(f"∂f/∂x2|a = {float(df_dx2_a):.4f}")
+    
+    print("\nSecond-order partial derivatives:")
+    d2f_dx1_2 = sp.diff(f, x1, 2)
+    d2f_dx2_2 = sp.diff(f, x2, 2)
+    d2f_dx1dx2 = sp.diff(f, x1, x2)
+    
+    print(f"∂²f/∂x1² = {d2f_dx1_2}")
+    print(f"∂²f/∂x2² = {d2f_dx2_2}")
+    print(f"∂²f/∂x1∂x2 = {d2f_dx1dx2}")
+    
+    # Build Taylor polynomial
+    taylor_poly = f_a
+    taylor_poly += df_dx1_a * (x1 - a[0]) + df_dx2_a * (x2 - a[1])
+    taylor_poly += (1/2) * (d2f_dx1_2.subs([(x1, a[0]), (x2, a[1])]) * (x1 - a[0])**2 +
+                            2 * d2f_dx1dx2.subs([(x1, a[0]), (x2, a[1])]) * (x1 - a[0]) * (x2 - a[1]) +
+                            d2f_dx2_2.subs([(x1, a[0]), (x2, a[1])]) * (x2 - a[1])**2)
+    
+    print(f"\nTaylor polynomial (order 2):")
+    print(f"P2(x1, x2) = {sp.simplify(taylor_poly)}")
+    
+    # Test at a specific point
+    test_point = [0.1, np.pi/4 + 0.1]
+    exact_value = float(f.subs([(x1, test_point[0]), (x2, test_point[1])]))
+    approx_value = float(taylor_poly.subs([(x1, test_point[0]), (x2, test_point[1])]))
+    
+    print(f"\n--- Evaluation at test point ({test_point[0]}, {test_point[1]:.4f}) ---")
+    print(f"Exact value: {exact_value:.6f}")
+    print(f"Taylor approximation: {approx_value:.6f}")
+    print(f"Absolute error: {abs(exact_value - approx_value):.6e}")
+    
+    # Visualization of convergence
+    visualize_taylor_convergence_2d(f, taylor_poly, a, x1, x2)
+    
+    return f, taylor_poly, [x1, x2]
+
+def visualize_taylor_convergence_2d(f, taylor_poly, center, x1_sym, x2_sym):
+    """Visualize the convergence of Taylor series in 2D"""
+    # Create mesh grid
+    x1_range = np.linspace(center[0] - 1, center[0] + 1, 50)
+    x2_range = np.linspace(center[1] - 1, center[1] + 1, 50)
+    X1, X2 = np.meshgrid(x1_range, x2_range)
+    
+    # Convert symbolic functions to numerical
+    f_num = sp.lambdify([x1_sym, x2_sym], f, 'numpy')
+    taylor_num = sp.lambdify([x1_sym, x2_sym], taylor_poly, 'numpy')
+    
+    # Calculate values
+    Z_exact = f_num(X1, X2)
+    Z_taylor = taylor_num(X1, X2)
+    Z_error = np.abs(Z_exact - Z_taylor)
+    
+    # Create figure with subplots
+    fig = plt.figure(figsize=(15, 5))
+    
+    # Original function
+    ax1 = fig.add_subplot(131, projection='3d')
+    surf1 = ax1.plot_surface(X1, X2, Z_exact, cmap='viridis', alpha=0.8)
+    ax1.set_title('Original Function f(x1, x2)')
+    ax1.set_xlabel('x1')
+    ax1.set_ylabel('x2')
+    ax1.set_zlabel('f(x1, x2)')
+    plt.colorbar(surf1, ax=ax1, shrink=0.5)
+    
+    # Taylor approximation
+    ax2 = fig.add_subplot(132, projection='3d')
+    surf2 = ax2.plot_surface(X1, X2, Z_taylor, cmap='plasma', alpha=0.8)
+    ax2.set_title('Taylor Approximation P2(x1, x2)')
+    ax2.set_xlabel('x1')
+    ax2.set_ylabel('x2')
+    ax2.set_zlabel('P2(x1, x2)')
+    plt.colorbar(surf2, ax=ax2, shrink=0.5)
+    
+    # Error
+    ax3 = fig.add_subplot(133, projection='3d')
+    surf3 = ax3.plot_surface(X1, X2, Z_error, cmap='inferno', alpha=0.8)
+    ax3.set_title('Absolute Error |f - P2|')
+    ax3.set_xlabel('x1')
+    ax3.set_ylabel('x2')
+    ax3.set_zlabel('Error')
+    plt.colorbar(surf3, ax=ax3, shrink=0.5)
+    
+    plt.suptitle('Taylor Series Convergence Visualization', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('part1_convergence.png', dpi=150, bbox_inches='tight')
+    plt.show()
+    
+    print("\n✓ Convergence visualization saved as 'part1_convergence.png'")
+
+# Part 2: Solving Nonlinear Differential Equation
+print("\n" + "=" * 70)
+print("PART 2: SOLVING NONLINEAR DIFFERENTIAL EQUATION")
+print("=" * 70)
+
+def part2_differential_equation():
+    """
+    Solve y'' - y = e^(x1 + x2) using Taylor expansion
+    """
+    print("\nDifferential equation: y'' - y = e^(x1 + x2)")
+    print("Initial conditions: y(0,0) = 1, y'(0,0) = 0")
+    
+    # Define symbolic variables
+    x1, x2 = sp.symbols('x1 x2')
+    
+    # Assume solution form y = sum of terms
+    # y(x1, x2) = a00 + a10*x1 + a01*x2 + a20*x1^2 + a11*x1*x2 + a02*x2^2 + ...
+    
+    # From the differential equation and initial conditions, derive coefficients
+    print("\n--- Deriving Taylor coefficients ---")
+    
+    # Initial conditions give us a00 = 1, gradient at origin = 0
+    print("From initial conditions: a00 = 1")
+    print("From y'(0,0) = 0: a10 = a01 = 0")
+    
+    # From the differential equation
+    print("\nFrom y'' - y = e^(x1 + x2):")
+    print("Expanding e^(x1 + x2) = 1 + (x1 + x2) + (x1 + x2)^2/2 + ...")
+    
+    # Build the solution
+    y_taylor = 1 + (x1**2 + x2**2)/2 + x1*x2 + (x1**3 + x2**3)/6 + (x1**2*x2 + x1*x2**2)/2
+    
+    print(f"\nTaylor solution (order 3):")
+    print(f"y(x1, x2) ≈ {y_taylor}")
+    
+    # Verify the solution
+    print("\n--- Verification ---")
+    y_xx = sp.diff(y_taylor, x1, 2) + sp.diff(y_taylor, x2, 2)
+    residual = sp.simplify(y_xx - y_taylor - sp.exp(x1 + x2))
+    
+    print(f"y'' = {y_xx}")
+    print(f"Residual (should be small): {residual}")
+    
+    # Numerical solution visualization
+    visualize_de_solution(y_taylor, x1, x2)
+    
+    return y_taylor
+
+def visualize_de_solution(y_solution, x1_sym, x2_sym):
+    """Visualize the differential equation solution"""
+    # Create mesh grid
+    x1_range = np.linspace(-1, 1, 50)
+    x2_range = np.linspace(-1, 1, 50)
+    X1, X2 = np.meshgrid(x1_range, x2_range)
+    
+    # Convert symbolic function to numerical
+    y_num = sp.lambdify([x1_sym, x2_sym], y_solution, 'numpy')
+    Z = y_num(X1, X2)
+    
+    # Create visualization
+    fig = plt.figure(figsize=(12, 5))
+    
+    # 3D surface plot
+    ax1 = fig.add_subplot(121, projection='3d')
+    surf = ax1.plot_surface(X1, X2, Z, cmap='coolwarm', alpha=0.8)
+    ax1.set_title('Solution y(x1, x2) to Differential Equation')
+    ax1.set_xlabel('x1')
+    ax1.set_ylabel('x2')
+    ax1.set_zlabel('y(x1, x2)')
+    plt.colorbar(surf, ax=ax1, shrink=0.5)
+    
+    # Contour plot
+    ax2 = fig.add_subplot(122)
+    contour = ax2.contourf(X1, X2, Z, levels=20, cmap='coolwarm')
+    ax2.contour(X1, X2, Z, levels=20, colors='black', alpha=0.3, linewidths=0.5)
+    ax2.set_title('Contour Plot of Solution')
+    ax2.set_xlabel('x1')
+    ax2.set_ylabel('x2')
+    plt.colorbar(contour, ax=ax2)
+    
+    plt.suptitle("Differential Equation Solution: y'' - y = e^(x1 + x2)", fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('part2_de_solution.png', dpi=150, bbox_inches='tight')
+    plt.show()
+    
+    print("✓ Differential equation solution visualization saved as 'part2_de_solution.png'")
+
+# Part 3: Computer Performance Modeling
+print("\n" + "=" * 70)
+print("PART 3: COMPUTER PERFORMANCE MODELING")
+print("=" * 70)
+
+def part3_performance_model():
+    """
+    Model computer performance using differential equations
+    
+    Performance factors:
+    - x1: CPU frequency (GHz)
+    - x2: Memory size (GB)
+    - x3: Memory bandwidth (GB/s)
+    - x4: Data size (GB)
+    """
+    print("\n--- Computer Performance Model ---")
+    print("\nPerformance factors:")
+    print("• x1: CPU frequency (GHz)")
+    print("• x2: Memory size (GB)")
+    print("• x3: Memory bandwidth (GB/s)")
+    print("• x4: Data size to process (GB)")
+    
+    # Define symbolic variables
+    x1, x2, x3, x4 = sp.symbols('x1 x2 x3 x4', positive=True)
+    
+    # Performance model: P = f(x1, x2, x3, x4)
+    # Higher CPU freq, memory size, and bandwidth improve performance
+    # Larger data size decreases performance
+    P = x1 * sp.sqrt(x2) * x3 / (1 + x4)
+    
+    print(f"\nPerformance function:")
+    print(f"P(x1, x2, x3, x4) = x1 * √x2 * x3 / (1 + x4)")
+    
+    # Differential equation modeling performance dynamics
+    # dP/dt = α*P*(1 - P/P_max) - β*P*x4
+    # This represents growth with saturation and data size penalty
+    
+    print("\nDifferential equation for performance dynamics:")
+    print("dP/dt = α*P*(1 - P/P_max) - β*P*x4")
+    print("where α = growth rate, β = data penalty factor, P_max = maximum performance")
+    
+    # Taylor expansion around operating point
+    operating_point = [3.5, 16, 25, 2]  # Typical values: 3.5 GHz, 16 GB RAM, 25 GB/s, 2 GB data
+    print(f"\nOperating point: CPU={operating_point[0]} GHz, RAM={operating_point[1]} GB, "
+          f"Bandwidth={operating_point[2]} GB/s, Data={operating_point[3]} GB")
+    
+    # Calculate Taylor expansion
+    print("\n--- Taylor Expansion of Performance Function ---")
+    
+    # Calculate value at operating point
+    P_0 = float(P.subs([(x1, operating_point[0]), (x2, operating_point[1]), 
+                        (x3, operating_point[2]), (x4, operating_point[3])]))
+    print(f"P(operating point) = {P_0:.2f} GFLOPS")
+    
+    # First-order derivatives (gradient)
+    grad_P = [sp.diff(P, var) for var in [x1, x2, x3, x4]]
+    grad_P_values = [float(g.subs([(x1, operating_point[0]), (x2, operating_point[1]),
+                                   (x3, operating_point[2]), (x4, operating_point[3])]))
+                     for g in grad_P]
+    
+    print("\nGradient at operating point:")
+    for i, (var_name, grad_val) in enumerate(zip(['CPU', 'RAM', 'Bandwidth', 'Data'], grad_P_values)):
+        print(f"  ∂P/∂{var_name} = {grad_val:.4f}")
+    
+    # Build linear approximation
+    P_linear = P_0
+    for i, var in enumerate([x1, x2, x3, x4]):
+        P_linear += grad_P_values[i] * (var - operating_point[i])
+    
+    print(f"\nLinear approximation:")
+    print(f"P ≈ {P_0:.2f} + {grad_P_values[0]:.3f}*(x1-{operating_point[0]}) + "
+          f"{grad_P_values[1]:.3f}*(x2-{operating_point[1]}) + "
+          f"{grad_P_values[2]:.3f}*(x3-{operating_point[2]}) + "
+          f"{grad_P_values[3]:.3f}*(x4-{operating_point[3]})")
+    
+    # Performance optimization analysis
+    print("\n--- Performance Optimization Analysis ---")
+    print("\nSensitivity analysis (impact of 10% increase in each factor):")
+    
+    for i, factor_name in enumerate(['CPU freq', 'Memory', 'Bandwidth', 'Data size']):
+        new_point = operating_point.copy()
+        new_point[i] *= 1.1
+        new_performance = float(P.subs([(x1, new_point[0]), (x2, new_point[1]),
+                                        (x3, new_point[2]), (x4, new_point[3])]))
+        change = ((new_performance - P_0) / P_0) * 100
+        print(f"  10% increase in {factor_name}: {change:+.2f}% performance change")
+    
+    # Visualize performance model
+    visualize_performance_model(P, operating_point, x1, x2, x3, x4)
+    
+    # Professional considerations
+    print_professional_considerations()
+    
+    return P, P_linear
+
+def visualize_performance_model(P, operating_point, x1, x2, x3, x4):
+    """Visualize the computer performance model"""
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    
+    # Fix two variables and vary the other two
+    fixed_x3 = operating_point[2]
+    fixed_x4 = operating_point[3]
+    
+    # Subplot 1: Performance vs CPU freq and Memory
+    ax = axes[0, 0]
+    x1_range = np.linspace(1, 5, 30)
+    x2_range = np.linspace(4, 32, 30)
+    X1, X2 = np.meshgrid(x1_range, x2_range)
+    
+    P_func = sp.lambdify([x1, x2, x3, x4], P, 'numpy')
+    Z = P_func(X1, X2, fixed_x3, fixed_x4)
+    
+    contour = ax.contourf(X1, X2, Z, levels=20, cmap='viridis')
+    ax.set_xlabel('CPU Frequency (GHz)')
+    ax.set_ylabel('Memory Size (GB)')
+    ax.set_title('Performance vs CPU & Memory')
+    ax.plot(operating_point[0], operating_point[1], 'r*', markersize=15, label='Operating Point')
+    ax.legend()
+    plt.colorbar(contour, ax=ax, label='Performance (GFLOPS)')
+    
+    # Subplot 2: Performance vs Bandwidth and Data size
+    ax = axes[0, 1]
+    x3_range = np.linspace(10, 50, 30)
+    x4_range = np.linspace(0.5, 5, 30)
+    X3, X4 = np.meshgrid(x3_range, x4_range)
+    
+    Z = P_func(operating_point[0], operating_point[1], X3, X4)
+    
+    contour = ax.contourf(X3, X4, Z, levels=20, cmap='plasma')
+    ax.set_xlabel('Memory Bandwidth (GB/s)')
+    ax.set_ylabel('Data Size (GB)')
+    ax.set_title('Performance vs Bandwidth & Data Size')
+    ax.plot(operating_point[2], operating_point[3], 'r*', markersize=15, label='Operating Point')
+    ax.legend()
+    plt.colorbar(contour, ax=ax, label='Performance (GFLOPS)')
+    
+    # Subplot 3: Performance vs CPU frequency (other vars fixed)
+    ax = axes[1, 0]
+    x1_range = np.linspace(1, 5, 100)
+    perf_values = [P_func(x1_val, operating_point[1], operating_point[2], operating_point[3]) 
+                   for x1_val in x1_range]
+    
+    ax.plot(x1_range, perf_values, 'b-', linewidth=2)
+    ax.axvline(operating_point[0], color='r', linestyle='--', label='Current CPU freq')
+    ax.set_xlabel('CPU Frequency (GHz)')
+    ax.set_ylabel('Performance (GFLOPS)')
+    ax.set_title('Performance Sensitivity to CPU Frequency')
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    
+    # Subplot 4: Cost-Performance Trade-off
+    ax = axes[1, 1]
+    
+    # Simple cost model: Cost = 100*x1 + 20*x2 + 50*x3
+    costs = []
+    performances = []
+    
+    for cpu in np.linspace(2, 5, 20):
+        for mem in np.linspace(8, 32, 20):
+            cost = 100*cpu + 20*mem + 50*fixed_x3
+            perf = P_func(cpu, mem, fixed_x3, fixed_x4)
+            costs.append(cost)
+            performances.append(perf)
+    
+    scatter = ax.scatter(costs, performances, c=np.array(performances)/np.array(costs), 
+                        cmap='coolwarm', alpha=0.6)
+    ax.set_xlabel('System Cost ($)')
+    ax.set_ylabel('Performance (GFLOPS)')
+    ax.set_title('Cost-Performance Trade-off')
+    ax.grid(True, alpha=0.3)
+    plt.colorbar(scatter, ax=ax, label='Perf/Cost Ratio')
+    
+    # Mark optimal point
+    perf_cost_ratio = np.array(performances) / np.array(costs)
+    optimal_idx = np.argmax(perf_cost_ratio)
+    ax.plot(costs[optimal_idx], performances[optimal_idx], 'g*', markersize=15, 
+            label='Optimal Perf/Cost')
+    ax.legend()
+    
+    plt.suptitle('Computer Performance Model Analysis', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('part3_performance_model.png', dpi=150, bbox_inches='tight')
+    plt.show()
+    
+    print("✓ Performance model visualization saved as 'part3_performance_model.png'")
+
+def print_professional_considerations():
+    """Print ethical and professional considerations"""
+    print("\n" + "=" * 70)
+    print("PROFESSIONAL AND ETHICAL CONSIDERATIONS")
+    print("=" * 70)
+    
+    print("\n1. PERFORMANCE vs COST TRADE-OFFS:")
+    print("   • Use quantitative models to justify system specifications")
+    print("   • Consider total cost of ownership (TCO), not just initial cost")
+    print("   • Balance current needs with future scalability requirements")
+    print("   • Document assumptions and limitations of performance models")
+    
+    print("\n2. LEGAL CONSIDERATIONS:")
+    print("   • Ensure compliance with data protection regulations (GDPR, CCPA)")
+    print("   • Respect software licensing terms for optimization tools")
+    print("   • Consider export restrictions on high-performance computing hardware")
+    print("   • Maintain audit trails for performance-critical systems")
+    
+    print("\n3. ETHICAL RESPONSIBILITIES:")
+    print("   • Avoid over-specifying systems that waste resources")
+    print("   • Consider environmental impact of high-performance systems")
+    print("   • Ensure fair access to computational resources")
+    print("   • Be transparent about system limitations and uncertainties")
+    
+    print("\n4. PROFESSIONAL BEST PRACTICES:")
+    print("   • Use validated benchmarks for performance assessment")
+    print("   • Document all modeling assumptions clearly")
+    print("   • Provide confidence intervals for performance predictions")
+    print("   • Regular review and update of performance models")
+    print("   • Collaborate with stakeholders to understand true requirements")
+    
+    print("\n5. DESIGN RECOMMENDATIONS:")
+    print("   • Start with minimum viable performance requirements")
+    print("   • Build in monitoring and performance tracking from the start")
+    print("   • Design for modularity to allow incremental upgrades")
+    print("   • Consider cloud/hybrid solutions for variable workloads")
+    print("   • Implement performance testing in development pipeline")
+
+# Main execution
+if __name__ == "__main__":
+    print("\n" + "=" * 70)
+    print(" CST-305: NUMERIC COMPUTATIONS WITH TAYLOR POLYNOMIALS")
+    print(" Complete Implementation and Analysis")
+    print("=" * 70)
+    
+    # Execute Part 1
+    try:
+        print("\n>>> Executing Part 1...")
+        f_original, taylor_approx, variables = part1_taylor_expansion()
+        print("\n✓ Part 1 completed successfully!")
+    except Exception as e:
+        print(f"\n✗ Error in Part 1: {e}")
+    
+    # Execute Part 2
+    try:
+        print("\n>>> Executing Part 2...")
+        y_solution = part2_differential_equation()
+        print("\n✓ Part 2 completed successfully!")
+    except Exception as e:
+        print(f"\n✗ Error in Part 2: {e}")
+    
+    # Execute Part 3
+    try:
+        print("\n>>> Executing Part 3...")
+        perf_model, perf_linear = part3_performance_model()
+        print("\n✓ Part 3 completed successfully!")
+    except Exception as e:
+        print(f"\n✗ Error in Part 3: {e}")
+    
+    print("\n" + "=" * 70)
+    print(" ANALYSIS COMPLETE")
+    print(" All visualizations have been saved to disk")
+    print("=" * 70)
